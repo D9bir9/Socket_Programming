@@ -26,7 +26,7 @@ int main(){
 
     char address[INET_ADDRSTRLEN];
     
-    inet_ntop(AF_INET, &servinfo, address, INET_ADDRSTRLEN);
+    inet_ntop(servinfo->ai_family, &servinfo->ai_addr, address, INET_ADDRSTRLEN);
 
     printf("%s\n", address);
 
