@@ -26,7 +26,7 @@ int main(int argc, char *argv[]){
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
-    if ((status = getaddrinfo(argv[1], "3490", &hints, &res)) != 0){
+    if ((status = getaddrinfo(argv[1], NULL, &hints, &res)) != 0){
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
         return 1;
     }
