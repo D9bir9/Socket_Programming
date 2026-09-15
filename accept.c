@@ -6,7 +6,7 @@
 #define MYPORT "3490" // the port users will be connecting to
 #define BACKLOG 10 // how many pending connections queue will hold
 
-int main(){
+int main(void){
     struct sockaddr_storage their_addr; // connector's address information
     socklen_t addr_size;
     struct addrinfo hints, *res;
