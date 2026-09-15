@@ -1,11 +1,17 @@
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 
 #define MYPORT "3490" // the port users will be connecting to
 #define BACKLOG 10 // how many pending connections queue will hold
+
+void sendall(int sockfd, const void *buf, size_t len);
 
 int main(void){
     struct sockaddr_storage their_addr; // connector's address information
@@ -57,8 +63,67 @@ int main(void){
         exit(1);
     }
 
+    char hostname[256];
+    size_t hostname_len = sizeof(hostname);
+
+    if (gethostname(hostname, hostname_len) == -1) {
+        perror("gethostname");
+        exit(1);
+    }
+    struct sockaddr_storage peer_addr;
+    int peer_addr_len = sizeof(peer_addr);
+    if (getpeername(new_fd, (struct sockaddr *)&peer_addr, &peer_addr_len) == -1) {
+        perror("getpeername");
+        exit(1);
+    }
+
+    char peer_ip[INET6_ADDRSTRLEN]  ;
+    if (peer_addr.ss_family == AF_INET) {
+        struct sockaddr_in *ipv4 = (struct sockaddr_in *)&peer_addr;
+        inet_ntop(AF_INET, &ipv4->sin_addr, peer_ip, INET_ADDRSTRLEN);
+    } 
+    else if (peer_addr.ss_family == AF_INET6) {
+        struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)&peer_addr;
+        inet_ntop(AF_INET6, &ipv6->sin6_addr, peer_ip, INET6_ADDRSTRLEN);
+    }
+
+    printf("Connected to client on host: %s\n", hostname);
+    printf("Client IP address: %s\n", peer_ip);
+
+
     // ready to communicate on socket descriptor new_fd
+    const char* msg = "Hello, client! Dabi was here.";
+    size_t len =  strlen(msg);
+    sendall(new_fd, msg, len);
 
+    char buffer[512];
+    ssize_t bytes_received = recv(new_fd, (void*)buffer, sizeof(buffer) - 1, 0);
+    if (bytes_received == -1) {
+        perror("recv");
+        exit(1);
+    }
+    else if (bytes_received == 0) {
+        printf("Client closed the connection.\n");
+        exit(0);
+    }
 
+    buffer[bytes_received] = '\0'; // Null-terminate the received string
+    printf("Received from client: %s\n", buffer);
+
+    close(new_fd);
+    close(sockfd);
+    freeaddrinfo(res);
     exit(0);
+}
+
+void sendall(int sockfd, const void *buf, size_t len){
+    size_t total_sent = 0;
+    while (total_sent < len){
+        ssize_t sent = send(sockfd, (const char*)buf + total_sent, len - total_sent, 0);
+        if (sent == -1){
+            perror("send");
+            exit(1);
+        }
+        total_sent += sent;
+    }
 }
