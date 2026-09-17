@@ -16,7 +16,7 @@ void sendall(int sockfd, const void *buf, size_t len);
 int main(void){
     struct sockaddr_storage their_addr; // connector's address information
     socklen_t addr_size;
-    struct addrinfo hints, *res;
+    struct addrinfo hints, *res, *p;
     int sockfd, new_fd; // listen on sock_fd, new connection on new_fd
     int status;
 
@@ -31,22 +31,30 @@ int main(void){
         exit(1);
     }
 
-    sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    if (sockfd == -1) {
-        perror("socket");
-        exit(1);
+    for (p = res; p != NULL; p = p->ai_next) {
+        sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if (sockfd == -1) {
+            perror("socket");
+            continue;
+        }
+
+        // Reuse the socket address to avoid "Address already in use" error
+        int yes = 1;
+        if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) == -1) {
+            perror("setsockopt");
+            exit(1);
+        }
+
+        if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
+            close(sockfd);
+            perror("bind");
+            continue;
+        }
+
+        break; // Successfully bound
     }
-
-
-    // Reuse the socket address to avoid "Address already in use" error
-    int yes = 1;
-    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) == -1) {
-        perror("setsockopt");
-        exit(1);
-    }
-
-    if (bind(sockfd, res->ai_addr, res->ai_addrlen) == -1) {
-        perror("bind");
+    if (p == NULL) {
+        fprintf(stderr, "Failed to bind socket\n");
         exit(1);
     }
 
@@ -71,7 +79,7 @@ int main(void){
         exit(1);
     }
     struct sockaddr_storage peer_addr;
-    int peer_addr_len = sizeof(peer_addr);
+    socklen_t peer_addr_len = sizeof(peer_addr);
     if (getpeername(new_fd, (struct sockaddr *)&peer_addr, &peer_addr_len) == -1) {
         perror("getpeername");
         exit(1);
@@ -85,6 +93,10 @@ int main(void){
     else if (peer_addr.ss_family == AF_INET6) {
         struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)&peer_addr;
         inet_ntop(AF_INET6, &ipv6->sin6_addr, peer_ip, INET6_ADDRSTRLEN);
+    }
+    else {
+        fprintf(stderr, "Unknown address family\n");
+        exit(1);
     }
 
     printf("Connected to client on host: %s\n", hostname);

@@ -10,30 +10,44 @@
 
 void sendall (int sockfd, const void *buf, size_t len);
 
-int main(void){
-    struct addrinfo hints, *res;
+int main(int argc, char *argv[]){
+
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <hostname>\n", argv[0]);
+        exit(1);
+    }
+    struct addrinfo hints, *res, *p;
     int servfd; // 
     int status;
 
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC; // use IPv4 or IPv6, whichever
     hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
-    hints.ai_flags = AI_PASSIVE; // fill in my IP for me
 
-    status = getaddrinfo(NULL, "3490", &hints, &res);
+    status = getaddrinfo(argv[1], "3490", &hints, &res);
     if (status != 0) {
         fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status));
         exit(1);
     }
 
-    servfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    if (servfd == -1) {
-        perror("socket");
-        exit(1);
+    for (p = res; p != NULL; p = p->ai_next) {
+        servfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if (servfd == -1) {
+            perror("socket");
+            continue;
+        }
+
+        if (connect(servfd, p->ai_addr, p->ai_addrlen) == -1) {
+            perror("connect");
+            close(servfd);
+            continue;
+        }
+
+        break; // Successfully connected
     }
 
-    if (connect(servfd, res->ai_addr, res->ai_addrlen) == -1) {
-        perror("connect");
+    if (p == NULL) {
+        fprintf(stderr, "Failed to connect to server\n");
         exit(1);
     }
 
